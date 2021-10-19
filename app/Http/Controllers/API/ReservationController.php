@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ReservationResource;
 use App\Models\Reservation;
 use App\Models\Table;
+use App\Models\WaitingList;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class ReservationController extends Controller
@@ -16,9 +18,12 @@ class ReservationController extends Controller
      *
      * @return void
      */
-    public function __construct()
+    private $reservation;
+    private $table;
+    public function __construct(Reservation $reservation)
     {
-        //
+        $this->reservation = $reservation;
+        $this->table = new Table();
     }
 
     public function reserveTable(Request $request){
@@ -26,7 +31,9 @@ class ReservationController extends Controller
             'date'          => 'required|after:yesterday',
             'from_time'     => 'required',
             'to_time'       => 'required|after:from_time',
-            'seats'         => 'required'
+            'seats'         => 'required',
+            'table_id'      => 'required|exists:tables,id',
+            'customer_id'   => 'required|exists:customers,id'
         ]);
 
         if ($validation->fails()){
@@ -39,19 +46,26 @@ class ReservationController extends Controller
         $to_time = $request->to_time;
         $seats = $request->seats;
 
-        $table = new Table();
-        $availableTables = $table->availableTables($date, $from_time, $to_time, $seats, $request->table_id);
+        // Checking again if the requested table still available , as it may be taken
+        // during the period when user starts to select the table and now
+        $availableTables = $this->table->availableTables($date, $from_time, $to_time, $seats, $request->table_id);
         if (!count($availableTables)){
-            return customResponse((object)[], 422, 'No tables available for this date and time');
+            // Creating a record for the customer in waiting list table if he has no records
+            WaitingList::firstOrCreate($request->only('customer_id'));
+            return customResponse((object)[], 422, 'No tables available for this date and time, You were added to waiting list');
         }
-
-        $reservation = new Reservation();
-        $reservation->table_id = $request->table_id;
-        $reservation->customer_id = $request->customer_id;
-        $reservation->date = $date;
-        $reservation->from_time = $from_time;
-        $reservation->to_time = $to_time;
-        $reservation->save();
+        // Starting the Database transaction
+        DB::beginTransaction();
+        try {
+            $reservation = $this->reservation->create($request->all());
+            // Deleting customer record from waiting list if exists
+            WaitingList::where('customer_id', $request->customer_id)->delete();
+            // Committing database transaction if succeeded
+            DB::commit();
+        }catch (\Exception $exception){
+            // Rolling back transaction when failure
+            DB::rollBack();
+        }
 
         return customResponse(new ReservationResource($reservation), 200);
 

@@ -11,6 +11,14 @@ class Order extends Model
 
     public $timestamps = false;
 
+    protected $fillable = [
+        'table_id',
+        'customer_id',
+        'reservation_id',
+        'waiter_id',
+        'date',
+    ];
+
     public function table(){
         return $this->belongsTo(Table::class);
     }

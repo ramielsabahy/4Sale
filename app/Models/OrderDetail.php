@@ -11,6 +11,12 @@ class OrderDetail extends Model
 
     public $timestamps = false;
 
+    protected $fillable = [
+        'order_id',
+        'meal_id',
+        'amount_to_pay',
+    ];
+
     protected $table = 'order_details';
     protected $guarded = [];
 

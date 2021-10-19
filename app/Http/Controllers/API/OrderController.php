@@ -4,12 +4,9 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\OrderResource;
-use App\Http\Resources\ReservationResource;
 use App\Models\Meal;
 use App\Models\Order;
 use App\Models\OrderDetail;
-use App\Models\Reservation;
-use App\Models\Table;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -21,9 +18,12 @@ class OrderController extends Controller
      *
      * @return void
      */
-    public function __construct()
+    private $order;
+    private $orderDetails;
+    public function __construct(Order $order)
     {
-        //
+        $this->order = $order;
+        $this->orderDetails = new OrderDetail();
     }
 
     public function order(Request $request){
@@ -42,25 +42,19 @@ class OrderController extends Controller
 
         DB::beginTransaction();
         try {
-            $order = new Order();
-            $order->table_id = $request->table_id;
-            $order->customer_id = $request->customer_id;
-            $order->reservation_id = $request->reservation_id;
-            $order->waiter_id = $request->waiter_id;
-            $order->date = date('Y-m-d');
-            $order->save();
-
+            $order = $this->order->create($request->except('meals'));
             $totalToBePaid = 0;
             foreach ($request->meals as $mealId){
                 $meal = Meal::whereId($mealId)->first();
                 if ($meal->quantity_available < 1){
                     return customResponse((object)[], 422, "Meal with id $mealId has ran out");
                 }
-                $orderDetails = new OrderDetail();
-                $orderDetails->order_id = $order->id;
-                $orderDetails->meal_id = $meal->id;
-                $orderDetails->amount_to_pay = $meal->price - $meal->discount;
-                $orderDetails->save();
+                $this->orderDetails->create([
+                    'order_id'  => $order->id,
+                    'meal_id'   => $meal->id,
+                    'amount_to_pay' => $meal->price - $meal->discount
+                ]);
+
                 $totalToBePaid += $meal->price - $meal->discount;
             }
             $order->total = $totalToBePaid;
@@ -69,7 +63,7 @@ class OrderController extends Controller
             return customResponse((object)[], 200, 'Order placed successfully');
         }catch (\Exception $exception){
             DB::rollBack();
-            return customResponse((object)[], 500, "Error in DB transaction");
+            return customResponse((object)[], 500, $exception->getMessage());
         }
 
 
@@ -85,7 +79,7 @@ class OrderController extends Controller
             return customResponse((object)[], 422, $validation->errors()->first());
         }
 
-        $order = Order::where(['table_id' => $request->table_id, 'customer_id' => $request->customer_id])
+        $order = $this->order->where(['table_id' => $request->table_id, 'customer_id' => $request->customer_id])
             ->where('paid', '=', 0)->first();
         $order->paid = 1;
         $order->save();

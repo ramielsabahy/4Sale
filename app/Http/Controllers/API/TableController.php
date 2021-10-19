@@ -4,7 +4,6 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\TableResource;
-use App\Models\Reservation;
 use App\Models\Table;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -16,9 +15,10 @@ class TableController extends Controller
      *
      * @return void
      */
-    public function __construct()
+    private $table;
+    public function __construct(Table $table)
     {
-        //
+        $this->table = $table;
     }
 
     public function checkAvailability(Request $request){
@@ -38,8 +38,7 @@ class TableController extends Controller
         $to_time = $request->to_time;
         $seats = $request->seats;
 
-        $table = new Table();
-        $availableTables = $table->availableTables($date, $from_time, $to_time, $seats);
+        $availableTables = $this->table->availableTables($date, $from_time, $to_time, $seats);
         return customResponse([
             'available_tables'  => count($availableTables) ? true : false,
             'tables'            => TableResource::collection($availableTables)

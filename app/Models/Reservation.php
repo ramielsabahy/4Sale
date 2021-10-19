@@ -11,6 +11,14 @@ class Reservation extends Model
 
     public $timestamps = false;
 
+    protected $fillable = [
+        'from_time',
+        'to_time',
+        'date',
+        'table_id',
+        'customer_id'
+    ];
+
     public function customer(){
         return $this->belongsTo(Customer::class);
     }
