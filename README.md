@@ -24,4 +24,9 @@
   - Getting the invoice by customer_id and table_id
   - Getting user Order record which is not paid yet
   - Update the order to be paid and return all of the order components to the API
-  - 
+- Waiting list :
+  - there were many possible ways to implement it as
+    - Add a flag inside reservations table to identify that this customer is on waiting list
+    - Create a new table for waiting list
+  - I 've chosen the second option to bring more flexibility for later edits as we can notify the customers on waiting list that the table is available now , but for now it is only logging the waiting customers
+  - After a customer on waiting list gets his table , his record in waiting list table is delete (if exists)
